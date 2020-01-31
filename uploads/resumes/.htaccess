@@ -1,0 +1,19 @@
+Options -Indexes
+<FilesMatch "\.(?i:php|pl|py|cgi|asp|js)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Allow access to specific file types
+<FilesMatch "\.(?i:pdf|doc|docx)$">
+    Order allow,deny
+    Allow from all
+</FilesMatch>
+
+# Additional security for resume files
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP_REFERER} !^http://(www\.)?localhost [NC]
+    RewriteCond %{HTTP_REFERER} !^http://(www\.)?yourdomain\.com [NC]
+    RewriteRule \.(pdf|doc|docx)$ - [F]
+</IfModule> 
