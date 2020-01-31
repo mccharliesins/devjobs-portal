@@ -377,7 +377,98 @@ p {
 
 .job-actions {
     display: flex;
-    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+}
+
+.share-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.btn-facebook {
+    background-color: #1877f2;
+    color: #fff;
+}
+
+.btn-facebook:hover {
+    background-color: #166fe5;
+}
+
+.btn-twitter {
+    background-color: #1da1f2;
+    color: #fff;
+}
+
+.btn-twitter:hover {
+    background-color: #1a91da;
+}
+
+.btn-linkedin {
+    background-color: #0077b5;
+    color: #fff;
+}
+
+.btn-linkedin:hover {
+    background-color: #006399;
+}
+
+.company-info {
+    background-color: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 4px;
+    margin-top: 1rem;
+}
+
+.company-info h3 {
+    color: #2c3e50;
+    margin-bottom: 0.5rem;
+}
+
+.company-info p {
+    color: #666;
+    line-height: 1.6;
+}
+
+.related-jobs {
+    margin-top: 3rem;
+}
+
+.related-jobs h2 {
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.related-jobs .job-card {
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.related-jobs .job-card h3 {
+    color: #2c3e50;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+}
+
+@media (max-width: 768px) {
+    .job-actions {
+        flex-direction: column;
+    }
+    
+    .share-buttons {
+        margin-left: 0;
+        flex-direction: column;
+    }
+    
+    .share-buttons button {
+        width: 100%;
+    }
 }
 
 /* job details styles */
