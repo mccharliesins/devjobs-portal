@@ -15,4 +15,28 @@ instructions.md
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Thumbs.db 
+Thumbs.db
+
+# ignore system files
+.DS_Store
+Thumbs.db
+
+# ignore IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ignore dependencies
+vendor/
+node_modules/
+
+# ignore environment files
+.env
+.env.local
+.env.*.local
+
+# ignore log files
+*.log
+error_log
+access_log 
