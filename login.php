@@ -32,20 +32,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // if no errors, check credentials
     if (empty($errors)) {
         try {
-            $stmt = $conn->prepare("SELECT id, username, password FROM users WHERE username = ?");
+            $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
             $stmt->execute([$username]);
             $user = $stmt->fetch();
 
             if ($user && password_verify($password, $user['password'])) {
                 // set session variables
                 $_SESSION['user_id'] = $user['id'];
-                $_SESSION['username'] = $user['username'];
-
-                // redirect to dashboard
-                header('Location: dashboard.php');
+                $_SESSION['user_name'] = $user['name'];
+                $_SESSION['user_email'] = $user['email'];
+                $_SESSION['user_role'] = $user['role'];
+                
+                // redirect to appropriate dashboard based on role
+                if ($user['role'] === 'recruiter') {
+                    header("Location: recruiter-dashboard.php");
+                } else {
+                    header("Location: index.php");
+                }
                 exit;
             } else {
-                $errors[] = 'invalid username or password';
+                $errors[] = 'invalid email or password';
             }
         } catch (PDOException $e) {
             $errors[] = 'login failed. please try again.';

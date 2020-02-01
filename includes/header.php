@@ -20,7 +20,11 @@ $is_logged_in = isset($_SESSION['user_id']);
                 <li><a href="index.php">Home</a></li>
                 <li><a href="jobs.php">Browse Jobs</a></li>
                 <?php if (isset($_SESSION['user_id'])): ?>
-                    <li><a href="my-applications.php">My Applications</a></li>
+                    <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'recruiter'): ?>
+                        <li><a href="recruiter-dashboard.php">Recruiter Dashboard</a></li>
+                    <?php else: ?>
+                        <li><a href="my-applications.php">My Applications</a></li>
+                    <?php endif; ?>
                     <li><a href="profile.php">Profile</a></li>
                     <li><a href="logout.php">Logout</a></li>
                 <?php else: ?>
