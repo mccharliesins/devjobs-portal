@@ -13,6 +13,18 @@ if (session_status() === PHP_SESSION_NONE) {
 // get job id from url
 $job_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
+// check if job is saved (if user is logged in)
+$is_saved = false;
+if (isset($_SESSION['user_id'])) {
+    try {
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM saved_jobs WHERE user_id = ? AND job_id = ?");
+        $stmt->execute([$_SESSION['user_id'], $job_id]);
+        $is_saved = (int)$stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        // silent fail, we'll assume the job is not saved
+    }
+}
+
 // fetch job details
 try {
     $stmt = $conn->prepare("SELECT * FROM jobs WHERE id = ?");
@@ -55,6 +67,18 @@ require_once 'includes/header.php';
                 <div class="job-actions">
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <a href="apply.php?id=<?php echo $job['id']; ?>" class="btn btn-primary">Apply Now</a>
+                        
+                        <?php if ($is_saved): ?>
+                            <form action="unsave-job.php" method="post" style="display: inline;">
+                                <input type="hidden" name="job_id" value="<?php echo $job['id']; ?>">
+                                <button type="submit" class="btn btn-secondary">Unsave Job</button>
+                            </form>
+                        <?php else: ?>
+                            <form action="save-job.php" method="post" style="display: inline;">
+                                <input type="hidden" name="job_id" value="<?php echo $job['id']; ?>">
+                                <button type="submit" class="btn btn-secondary">Save Job</button>
+                            </form>
+                        <?php endif; ?>
                     <?php else: ?>
                         <a href="login.php" class="btn btn-primary">Login to Apply</a>
                     <?php endif; ?>
