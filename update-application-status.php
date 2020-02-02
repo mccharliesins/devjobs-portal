@@ -2,6 +2,9 @@
 // include database connection
 require_once 'db.php';
 
+// include email functions
+require_once 'includes/email_functions.php';
+
 // set default timezone
 date_default_timezone_set('UTC');
 
@@ -45,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $application_id = isset($_POST['application_id']) ? (int)$_POST['application_id'] : 0;
 $job_id = isset($_POST['job_id']) ? (int)$_POST['job_id'] : 0;
 $status = isset($_POST['status']) ? trim($_POST['status']) : '';
+$message = isset($_POST['message']) ? trim($_POST['message']) : '';
 
 // validate data
 if ($application_id <= 0 || $job_id <= 0) {
@@ -53,7 +57,7 @@ if ($application_id <= 0 || $job_id <= 0) {
     exit;
 }
 
-if (!in_array($status, ['accepted', 'rejected'])) {
+if (!in_array($status, ['pending', 'reviewing', 'interview', 'rejected', 'accepted'])) {
     $_SESSION['error'] = 'invalid status.';
     header('Location: view-applications.php?job_id=' . $job_id);
     exit;
@@ -62,9 +66,10 @@ if (!in_array($status, ['accepted', 'rejected'])) {
 // verify that the job belongs to the recruiter and application exists
 try {
     $stmt = $conn->prepare("
-        SELECT a.*, j.recruiter_id
+        SELECT a.*, j.title, j.company, j.user_id as recruiter_id, u.email, u.first_name, u.last_name
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
+        JOIN users u ON a.user_id = u.id
         WHERE a.id = ? AND j.id = ?
     ");
     $stmt->execute([$application_id, $job_id]);
@@ -82,20 +87,15 @@ try {
         exit;
     }
 
-    if ($application['status'] !== 'pending') {
-        $_SESSION['error'] = 'only pending applications can be updated.';
-        header('Location: view-applications.php?job_id=' . $job_id);
-        exit;
-    }
-
     // update application status
     $stmt = $conn->prepare("UPDATE applications SET status = ?, updated_at = NOW() WHERE id = ?");
     $result = $stmt->execute([$status, $application_id]);
 
     if ($result) {
-        $_SESSION['success'] = 'application ' . $status . ' successfully.';
+        // send email notification to applicant about status change
+        send_application_status_update($application_id, $status);
         
-        // TODO: Send email notification to applicant about status change
+        $_SESSION['success'] = 'application status updated to ' . $status . ' successfully.';
     } else {
         $_SESSION['error'] = 'failed to update application status.';
     }

@@ -139,6 +139,8 @@ require_once 'includes/header.php';
                 <div class="applications-tabs">
                     <button class="tab-btn active" data-status="all">All</button>
                     <button class="tab-btn" data-status="pending">Pending</button>
+                    <button class="tab-btn" data-status="reviewing">Reviewing</button>
+                    <button class="tab-btn" data-status="interview">Interview</button>
                     <button class="tab-btn" data-status="accepted">Accepted</button>
                     <button class="tab-btn" data-status="rejected">Rejected</button>
                     <button class="tab-btn" data-status="withdrawn">Withdrawn</button>
@@ -166,19 +168,43 @@ require_once 'includes/header.php';
                             <div class="application-actions">
                                 <a href="application-details-recruiter.php?id=<?php echo $application['id']; ?>" class="btn btn-secondary">View Full Application</a>
                                 
-                                <?php if ($application['status'] === 'pending'): ?>
-                                    <form action="update-application-status.php" method="POST" class="inline-form">
-                                        <input type="hidden" name="application_id" value="<?php echo $application['id']; ?>">
-                                        <input type="hidden" name="job_id" value="<?php echo $job_id; ?>">
-                                        <input type="hidden" name="status" value="accepted">
-                                        <button type="submit" class="btn btn-success">Accept</button>
-                                    </form>
-                                    <form action="update-application-status.php" method="POST" class="inline-form">
-                                        <input type="hidden" name="application_id" value="<?php echo $application['id']; ?>">
-                                        <input type="hidden" name="job_id" value="<?php echo $job_id; ?>">
-                                        <input type="hidden" name="status" value="rejected">
-                                        <button type="submit" class="btn btn-danger">Reject</button>
-                                    </form>
+                                <?php if ($application['status'] !== 'withdrawn'): ?>
+                                    <div class="dropdown">
+                                        <button class="btn btn-primary dropdown-toggle">Update Status</button>
+                                        <div class="dropdown-content">
+                                            <form action="update-application-status.php" method="POST">
+                                                <input type="hidden" name="application_id" value="<?php echo $application['id']; ?>">
+                                                <input type="hidden" name="job_id" value="<?php echo $job_id; ?>">
+                                                
+                                                <div class="status-options">
+                                                    <label>
+                                                        <input type="radio" name="status" value="pending" <?php echo $application['status'] === 'pending' ? 'checked' : ''; ?>>
+                                                        Pending
+                                                    </label>
+                                                    <label>
+                                                        <input type="radio" name="status" value="reviewing" <?php echo $application['status'] === 'reviewing' ? 'checked' : ''; ?>>
+                                                        Reviewing
+                                                    </label>
+                                                    <label>
+                                                        <input type="radio" name="status" value="interview" <?php echo $application['status'] === 'interview' ? 'checked' : ''; ?>>
+                                                        Interview
+                                                    </label>
+                                                    <label>
+                                                        <input type="radio" name="status" value="accepted" <?php echo $application['status'] === 'accepted' ? 'checked' : ''; ?>>
+                                                        Accepted
+                                                    </label>
+                                                    <label>
+                                                        <input type="radio" name="status" value="rejected" <?php echo $application['status'] === 'rejected' ? 'checked' : ''; ?>>
+                                                        Rejected
+                                                    </label>
+                                                </div>
+                                                
+                                                <div class="form-actions">
+                                                    <button type="submit" class="btn btn-success">Update Status</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         </div>

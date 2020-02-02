@@ -2,6 +2,9 @@
 // include database connection
 require_once 'db.php';
 
+// include email functions
+require_once 'includes/email_functions.php';
+
 // set default timezone
 date_default_timezone_set('UTC');
 
@@ -42,6 +45,11 @@ try {
         header('Location: job-details.php?id=' . $job_id);
         exit;
     }
+    
+    // get user details for email notification
+    $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch();
 } catch (PDOException $e) {
     $_SESSION['error'] = 'failed to fetch job details.';
     header('Location: jobs.php');
@@ -90,6 +98,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = $stmt->execute([$job_id, $_SESSION['user_id'], $cover_letter, $resume]);
 
             if ($result) {
+                // get the application id
+                $application_id = $conn->lastInsertId();
+                
+                // send email notification to applicant
+                send_application_notification_to_applicant(
+                    $_SESSION['user_id'],
+                    $job_id,
+                    $job['title'],
+                    $job['company']
+                );
+                
+                // send email notification to recruiter
+                $applicant_name = $user['first_name'] . ' ' . $user['last_name'];
+                send_application_notification_to_recruiter(
+                    $job_id,
+                    $job['title'],
+                    $applicant_name,
+                    $user['email']
+                );
+                
                 $_SESSION['success'] = 'your application has been submitted successfully.';
                 header('Location: my-applications.php');
                 exit;
