@@ -1,6 +1,7 @@
 <?php
 // include database connection
 require_once 'db.php';
+require_once 'includes/mailer.php';
 
 // include email functions
 require_once 'includes/email_functions.php';
@@ -13,96 +14,107 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// check if user is logged in
-if (!isset($_SESSION['user_id'])) {
-    $_SESSION['error'] = 'please login to update application status.';
+// check if user is logged in and is a recruiter
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'recruiter') {
+    $_SESSION['error'] = 'you must be logged in as a recruiter to update application status.';
     header('Location: login.php');
     exit;
 }
 
-// check if user is a recruiter
-try {
-    $stmt = $conn->prepare("SELECT role FROM users WHERE id = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $user = $stmt->fetch();
-
-    if (!$user || $user['role'] !== 'recruiter') {
-        $_SESSION['error'] = 'you do not have permission to update application status.';
-        header('Location: index.php');
-        exit;
-    }
-} catch (PDOException $e) {
-    $_SESSION['error'] = 'database error: ' . $e->getMessage();
-    header('Location: index.php');
-    exit;
-}
-
-// check if this is a post request
+// check if request method is POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $_SESSION['error'] = 'invalid request method.';
     header('Location: recruiter-dashboard.php');
     exit;
 }
 
-// get form data
+// validate form data
 $application_id = isset($_POST['application_id']) ? (int)$_POST['application_id'] : 0;
-$job_id = isset($_POST['job_id']) ? (int)$_POST['job_id'] : 0;
 $status = isset($_POST['status']) ? trim($_POST['status']) : '';
-$message = isset($_POST['message']) ? trim($_POST['message']) : '';
+$notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
+$job_id = isset($_POST['job_id']) ? (int)$_POST['job_id'] : 0;
 
-// validate data
-if ($application_id <= 0 || $job_id <= 0) {
-    $_SESSION['error'] = 'invalid application or job id.';
+if (empty($application_id) || empty($status)) {
+    $_SESSION['error'] = 'application id and status are required.';
     header('Location: recruiter-dashboard.php');
     exit;
 }
 
-if (!in_array($status, ['pending', 'reviewing', 'interview', 'rejected', 'accepted'])) {
+// validate status
+$valid_statuses = ['pending', 'reviewing', 'interview', 'accepted', 'rejected'];
+if (!in_array($status, $valid_statuses)) {
     $_SESSION['error'] = 'invalid status.';
-    header('Location: view-applications.php?job_id=' . $job_id);
+    header('Location: view-applications.php' . ($job_id ? "?job_id=$job_id" : ''));
     exit;
 }
 
-// verify that the job belongs to the recruiter and application exists
 try {
+    // check if application exists and belongs to a job posted by the recruiter
     $stmt = $conn->prepare("
-        SELECT a.*, j.title, j.company, j.user_id as recruiter_id, u.email, u.first_name, u.last_name
+        SELECT a.*, j.title as job_title, j.company_id, c.name as company_name, u.username, u.email
         FROM applications a
         JOIN jobs j ON a.job_id = j.id
+        LEFT JOIN companies c ON j.company_id = c.id
         JOIN users u ON a.user_id = u.id
-        WHERE a.id = ? AND j.id = ?
+        WHERE a.id = ? AND j.user_id = ?
     ");
-    $stmt->execute([$application_id, $job_id]);
+    $stmt->execute([$application_id, $_SESSION['user_id']]);
     $application = $stmt->fetch();
-
+    
     if (!$application) {
-        $_SESSION['error'] = 'application not found.';
-        header('Location: view-applications.php?job_id=' . $job_id);
+        $_SESSION['error'] = 'application not found or you do not have permission to update it.';
+        header('Location: view-applications.php' . ($job_id ? "?job_id=$job_id" : ''));
         exit;
     }
-
-    if ($application['recruiter_id'] != $_SESSION['user_id']) {
-        $_SESSION['error'] = 'you do not have permission to update this application.';
-        header('Location: recruiter-dashboard.php');
-        exit;
-    }
-
+    
     // update application status
-    $stmt = $conn->prepare("UPDATE applications SET status = ?, updated_at = NOW() WHERE id = ?");
-    $result = $stmt->execute([$status, $application_id]);
-
+    $conn->beginTransaction();
+    
+    $stmt = $conn->prepare("
+        UPDATE applications 
+        SET status = ?, notes = ?, updated_at = NOW() 
+        WHERE id = ?
+    ");
+    
+    $result = $stmt->execute([
+        $status,
+        $notes,
+        $application_id
+    ]);
+    
     if ($result) {
-        // send email notification to applicant about status change
-        send_application_status_update($application_id, $status);
+        $conn->commit();
         
-        $_SESSION['success'] = 'application status updated to ' . $status . ' successfully.';
+        // send email notification to applicant
+        $email_template = get_application_status_update_email(
+            $application['username'],
+            $application['job_title'],
+            $application['company_name'] ?? 'N/A',
+            $status,
+            $application['job_id'],
+            $notes
+        );
+        
+        send_email(
+            $application['email'],
+            $email_template['subject'],
+            $email_template['body']
+        );
+        
+        $_SESSION['success'] = 'application status updated successfully.';
     } else {
+        $conn->rollBack();
         $_SESSION['error'] = 'failed to update application status.';
     }
 } catch (PDOException $e) {
+    $conn->rollBack();
     $_SESSION['error'] = 'database error: ' . $e->getMessage();
 }
 
-// redirect back to applications page
-header('Location: view-applications.php?job_id=' . $job_id);
+// redirect back to the applications page
+if ($job_id) {
+    header("Location: view-applications.php?job_id=$job_id");
+} else {
+    header("Location: application-details-recruiter.php?id=$application_id");
+}
 exit; 
