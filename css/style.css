@@ -2084,4 +2084,300 @@ small {
     padding: 20px;
     text-align: center;
     color: var(--color-text-light);
+}
+
+/* Admin Dashboard Styles */
+.admin-actions {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+.admin-actions h2 {
+    margin-bottom: 15px;
+    border-bottom: 2px solid var(--color-primary);
+    padding-bottom: 10px;
+}
+
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.recent-activities {
+    margin-top: 30px;
+    padding: 20px;
+    background-color: var(--color-bg-light);
+    border-radius: 8px;
+}
+
+.activity-placeholder {
+    padding: 15px;
+    text-align: center;
+    border: 1px dashed var(--color-border);
+    border-radius: 4px;
+    margin-top: 20px;
+}
+
+/* User Management Styles */
+.user-filters {
+    margin-bottom: 25px;
+    padding: 15px;
+    background-color: var(--color-bg-light);
+    border-radius: 8px;
+}
+
+.filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.users-list, .jobs-list {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+}
+
+.data-table th, .data-table td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.data-table th {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text);
+    font-weight: 600;
+}
+
+.data-table tbody tr:hover {
+    background-color: var(--color-bg-light);
+}
+
+.actions {
+    white-space: nowrap;
+}
+
+.inline-form {
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.role-select {
+    width: auto;
+    padding: 5px;
+    margin-right: 5px;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 13px;
+}
+
+.btn-active {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+.no-results {
+    text-align: center;
+    padding: 20px;
+    color: var(--color-text-light);
+}
+
+.status-active {
+    color: var(--color-success);
+}
+
+.status-inactive {
+    color: var(--color-danger);
+}
+
+/* System Settings Styles */
+.settings-form {
+    margin-top: 20px;
+}
+
+.settings-group {
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: var(--color-bg-light);
+    border-radius: 8px;
+}
+
+.settings-group h2 {
+    border-bottom: 2px solid var(--color-primary);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+.tools-section {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+.tools-section h2 {
+    margin-bottom: 15px;
+    border-bottom: 2px solid var(--color-primary);
+    padding-bottom: 10px;
+}
+
+.tool-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+/* Log Viewing Styles */
+.logs-section, .admin-logs-section {
+    margin-top: 20px;
+    margin-bottom: 30px;
+}
+
+.log-file {
+    margin-bottom: 25px;
+    background-color: var(--color-bg-light);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.log-header {
+    background-color: var(--color-bg-secondary);
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.log-header h2 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.log-meta {
+    margin-top: 5px;
+    font-size: 12px;
+    color: var(--color-text-light);
+}
+
+.log-meta span {
+    margin-right: 15px;
+}
+
+.log-content {
+    padding: 15px;
+}
+
+.log-lines {
+    background-color: #f8f8f8;
+    padding: 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    font-size: 13px;
+    color: #333;
+}
+
+.log-notice {
+    font-size: 12px;
+    margin-top: 10px;
+    color: var(--color-text-light);
+    text-align: center;
+}
+
+.empty-log {
+    text-align: center;
+    padding: 20px;
+    color: var(--color-text-light);
+}
+
+.log-status-success {
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+.log-status-failed {
+    background-color: rgba(244, 67, 54, 0.1);
+}
+
+.log-status-partial {
+    background-color: rgba(255, 152, 0, 0.1);
+}
+
+.no-logs {
+    text-align: center;
+    padding: 30px;
+    background-color: var(--color-bg-light);
+    border-radius: 8px;
+    color: var(--color-text-light);
+}
+
+/* Responsive Styles for Admin Pages */
+@media (max-width: 768px) {
+    .filter-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .action-buttons, .tool-buttons {
+        flex-direction: column;
+    }
+    
+    .action-buttons .btn, .tool-buttons .btn {
+        margin-bottom: 10px;
+        width: 100%;
+    }
+    
+    .data-table {
+        display: block;
+    }
+    
+    .data-table thead, .data-table tbody, .data-table th, .data-table td, .data-table tr {
+        display: block;
+    }
+    
+    .data-table thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    
+    .data-table tr {
+        border: 1px solid var(--color-border);
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+    
+    .data-table td {
+        border: none;
+        border-bottom: 1px solid var(--color-border-light);
+        position: relative;
+        padding-left: 50%;
+        white-space: normal;
+        text-align: left;
+    }
+    
+    .data-table td:before {
+        position: absolute;
+        top: 12px;
+        left: 15px;
+        width: 45%;
+        padding-right: 10px;
+        white-space: nowrap;
+        font-weight: 600;
+    }
+    
+    .data-table td:nth-of-type(1):before { content: "ID"; }
+    .data-table td:nth-of-type(2):before { content: "Username/Title"; }
+    .data-table td:nth-of-type(3):before { content: "Email/Company"; }
+    .data-table td:nth-of-type(4):before { content: "Role/Recruiter"; }
+    .data-table td:nth-of-type(5):before { content: "Created/Type"; }
+    .data-table td:nth-of-type(6):before { content: "Status"; }
+    .data-table td:nth-of-type(7):before { content: "Posted"; }
+    .data-table td:nth-of-type(8):before { content: "Actions"; }
 } 
