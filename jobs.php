@@ -1,258 +1,259 @@
 <?php
-// include database connection
-require_once 'db.php';
+// include header and database connection
+require_once 'includes/header.php';
+require_once 'includes/db.php';
 
-// set default timezone
-date_default_timezone_set('UTC');
+// set page title
+$page_title = 'Browse Jobs';
 
-// start session if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// define search parameters
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$location = isset($_GET['location']) ? trim($_GET['location']) : '';
+$job_type = isset($_GET['job_type']) ? trim($_GET['job_type']) : '';
+$category = isset($_GET['category']) ? intval($_GET['category']) : 0;
+$tag = isset($_GET['tag']) ? intval($_GET['tag']) : 0;
+$sort = isset($_GET['sort']) ? $_GET['sort'] : 'newest';
 
-// handle pagination
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$page = max(1, $page); // ensure page is at least 1
+// pagination
+$page = isset($_GET['page']) ? intval($_GET['page']) : 1;
 $per_page = 10;
 $offset = ($page - 1) * $per_page;
 
-// handle search query
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-
-// handle filters
-$location = isset($_GET['location']) ? trim($_GET['location']) : '';
-$job_type = isset($_GET['job_type']) ? trim($_GET['job_type']) : '';
-
+// fetch total number of jobs matching the filters
 try {
-    // build query
     $params = [];
-    $where_conditions = [];
+    $where_clauses = ["j.status = 'active'"];
     
     if (!empty($search)) {
-        $where_conditions[] = "(j.title LIKE ? OR j.description LIKE ? OR c.name LIKE ?)";
-        $search_param = "%" . $search . "%";
+        $where_clauses[] = "(j.title LIKE ? OR j.company LIKE ? OR j.description LIKE ?)";
+        $search_param = '%' . $search . '%';
         $params[] = $search_param;
         $params[] = $search_param;
         $params[] = $search_param;
     }
     
     if (!empty($location)) {
-        $where_conditions[] = "j.location LIKE ?";
-        $params[] = "%" . $location . "%";
+        $where_clauses[] = "j.location LIKE ?";
+        $params[] = '%' . $location . '%';
     }
     
     if (!empty($job_type)) {
-        $where_conditions[] = "j.job_type = ?";
+        $where_clauses[] = "j.job_type = ?";
         $params[] = $job_type;
     }
     
-    $where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
+    $join_clauses = [];
     
-    // count total jobs
-    $count_sql = "
-        SELECT COUNT(j.id) as total 
-        FROM jobs j
-        LEFT JOIN companies c ON j.company_id = c.id
-        $where_clause
-    ";
+    if (!empty($category)) {
+        $join_clauses[] = "JOIN job_categories jc ON j.id = jc.job_id";
+        $where_clauses[] = "jc.category_id = ?";
+        $params[] = $category;
+    }
     
-    $count_stmt = $conn->prepare($count_sql);
-    $count_stmt->execute($params);
-    $row = $count_stmt->fetch();
-    $total_jobs = $row['total'];
+    if (!empty($tag)) {
+        $join_clauses[] = "JOIN job_tags jt ON j.id = jt.job_id";
+        $where_clauses[] = "jt.tag_id = ?";
+        $params[] = $tag;
+    }
+    
+    $join_sql = implode(' ', $join_clauses);
+    $where_sql = implode(' AND ', $where_clauses);
+    
+    $sql = "SELECT COUNT(DISTINCT j.id) as total FROM jobs j $join_sql WHERE $where_sql";
+    $stmt = $conn->prepare($sql);
+    $stmt->execute($params);
+    $total_jobs = $stmt->fetchColumn();
+    
+    // calculate total pages
     $total_pages = ceil($total_jobs / $per_page);
     
-    // fetch jobs with company info
+    // ensure current page is valid
+    if ($page < 1) $page = 1;
+    if ($page > $total_pages && $total_pages > 0) $page = $total_pages;
+    
+    // fetch jobs with pagination
+    $sort_clause = match($sort) {
+        'salary_high' => 'j.salary_range DESC',
+        'salary_low' => 'j.salary_range ASC',
+        'oldest' => 'j.created_at ASC',
+        default => 'j.created_at DESC' // newest first by default
+    };
+    
     $sql = "
-        SELECT j.*, c.name as company_name, c.logo as company_logo, c.id as company_id
-        FROM jobs j
-        LEFT JOIN companies c ON j.company_id = c.id
-        $where_clause
-        ORDER BY j.created_at DESC
-        LIMIT $per_page OFFSET $offset
+        SELECT DISTINCT j.*, 
+            (SELECT GROUP_CONCAT(c.name SEPARATOR ', ') 
+             FROM categories c 
+             JOIN job_categories jc ON c.id = jc.category_id 
+             WHERE jc.job_id = j.id) AS categories,
+            (SELECT GROUP_CONCAT(t.name SEPARATOR ', ') 
+             FROM tags t 
+             JOIN job_tags jt ON t.id = jt.tag_id 
+             WHERE jt.job_id = j.id) AS tags
+        FROM jobs j 
+        $join_sql
+        WHERE $where_sql
+        ORDER BY $sort_clause
+        LIMIT ?, ?
     ";
+    
+    $params[] = $offset;
+    $params[] = $per_page;
     
     $stmt = $conn->prepare($sql);
     $stmt->execute($params);
-    $jobs = $stmt->fetchAll();
+    $jobs = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // fetch unique locations for filter
-    $locations_stmt = $conn->query("SELECT DISTINCT location FROM jobs ORDER BY location");
-    $locations = $locations_stmt->fetchAll(PDO::FETCH_COLUMN);
+    // fetch categories for filter
+    $stmt = $conn->prepare("SELECT id, name FROM categories ORDER BY name");
+    $stmt->execute();
+    $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // fetch unique job types for filter
-    $job_types_stmt = $conn->query("SELECT DISTINCT job_type FROM jobs ORDER BY job_type");
-    $job_types = $job_types_stmt->fetchAll(PDO::FETCH_COLUMN);
+    // fetch tags for filter
+    $stmt = $conn->prepare("SELECT id, name FROM tags ORDER BY name");
+    $stmt->execute();
+    $tags = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (PDOException $e) {
     $_SESSION['error'] = 'database error: ' . $e->getMessage();
-    $jobs = [];
-    $total_pages = 0;
     $total_jobs = 0;
-    $locations = [];
-    $job_types = [];
+    $total_pages = 0;
+    $jobs = [];
+    $categories = [];
+    $tags = [];
 }
-
-// include header
-require_once 'includes/header.php';
 ?>
 
 <main>
     <div class="container">
         <div class="page-header">
             <h1>Browse Jobs</h1>
-            <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'recruiter'): ?>
-                <a href="create-job.php" class="btn btn-primary">Post a Job</a>
-            <?php endif; ?>
+            <p class="lead">Find your next career opportunity</p>
         </div>
         
-        <?php if (isset($_SESSION['success'])): ?>
-            <div class="alert alert-success">
-                <?php 
-                    echo htmlspecialchars($_SESSION['success']); 
-                    unset($_SESSION['success']);
-                ?>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (isset($_SESSION['error'])): ?>
-            <div class="alert alert-error">
-                <?php 
-                    echo htmlspecialchars($_SESSION['error']); 
-                    unset($_SESSION['error']);
-                ?>
-            </div>
-        <?php endif; ?>
-        
-        <div class="search-filter-container">
-            <form method="GET" class="job-search-form">
-                <div class="search-row">
-                    <div class="search-input">
-                        <input type="text" name="search" placeholder="Search jobs, companies, or keywords" value="<?php echo htmlspecialchars($search); ?>">
-                    </div>
+        <div class="search-filters">
+            <form action="jobs.php" method="GET" class="filters-form">
+                <div class="search-bar">
+                    <input type="text" name="search" placeholder="Search jobs by title, company or keywords" value="<?php echo htmlspecialchars($search); ?>">
+                    <input type="text" name="location" placeholder="Location" value="<?php echo htmlspecialchars($location); ?>">
                     <button type="submit" class="btn btn-primary">Search</button>
                 </div>
                 
-                <div class="filter-row">
-                    <div class="filter-group">
-                        <label for="location">Location</label>
-                        <select name="location" id="location">
-                            <option value="">All Locations</option>
-                            <?php foreach ($locations as $loc): ?>
-                                <option value="<?php echo htmlspecialchars($loc); ?>" <?php echo $loc === $location ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($loc); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
+                <div class="advanced-filters">
                     <div class="filter-group">
                         <label for="job_type">Job Type</label>
                         <select name="job_type" id="job_type">
                             <option value="">All Types</option>
-                            <?php foreach ($job_types as $type): ?>
-                                <option value="<?php echo htmlspecialchars($type); ?>" <?php echo $type === $job_type ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($type); ?>
+                            <option value="full-time" <?php echo $job_type === 'full-time' ? 'selected' : ''; ?>>Full Time</option>
+                            <option value="part-time" <?php echo $job_type === 'part-time' ? 'selected' : ''; ?>>Part Time</option>
+                            <option value="contract" <?php echo $job_type === 'contract' ? 'selected' : ''; ?>>Contract</option>
+                            <option value="internship" <?php echo $job_type === 'internship' ? 'selected' : ''; ?>>Internship</option>
+                            <option value="remote" <?php echo $job_type === 'remote' ? 'selected' : ''; ?>>Remote</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="category">Category</label>
+                        <select name="category" id="category">
+                            <option value="0">All Categories</option>
+                            <?php foreach ($categories as $cat): ?>
+                                <option value="<?php echo $cat['id']; ?>" <?php echo $category == $cat['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($cat['name']); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     
-                    <?php if (!empty($search) || !empty($location) || !empty($job_type)): ?>
-                        <a href="jobs.php" class="btn btn-secondary">Clear Filters</a>
-                    <?php endif; ?>
+                    <div class="filter-group">
+                        <label for="tag">Tag</label>
+                        <select name="tag" id="tag">
+                            <option value="0">All Tags</option>
+                            <?php foreach ($tags as $t): ?>
+                                <option value="<?php echo $t['id']; ?>" <?php echo $tag == $t['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($t['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="sort">Sort By</label>
+                        <select name="sort" id="sort">
+                            <option value="newest" <?php echo $sort === 'newest' ? 'selected' : ''; ?>>Newest First</option>
+                            <option value="oldest" <?php echo $sort === 'oldest' ? 'selected' : ''; ?>>Oldest First</option>
+                            <option value="salary_high" <?php echo $sort === 'salary_high' ? 'selected' : ''; ?>>Highest Salary</option>
+                            <option value="salary_low" <?php echo $sort === 'salary_low' ? 'selected' : ''; ?>>Lowest Salary</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-secondary">Apply Filters</button>
+                    <a href="jobs.php" class="btn btn-link">Clear Filters</a>
                 </div>
             </form>
         </div>
         
         <div class="job-results">
-            <p class="result-count">
-                <?php echo $total_jobs; ?> job<?php echo $total_jobs !== 1 ? 's' : ''; ?> found
-                <?php if (!empty($search) || !empty($location) || !empty($job_type)): ?>
-                    with the selected filters
-                <?php endif; ?>
-            </p>
+            <div class="results-header">
+                <p class="results-count">Found <?php echo $total_jobs; ?> job<?php echo $total_jobs !== 1 ? 's' : ''; ?></p>
+            </div>
             
-            <?php if (!empty($jobs)): ?>
+            <?php if (empty($jobs)): ?>
+                <div class="no-results">
+                    <p>No jobs found matching your criteria.</p>
+                    <p>Try adjusting your search filters or <a href="jobs.php">view all jobs</a>.</p>
+                </div>
+            <?php else: ?>
                 <div class="job-list">
                     <?php foreach ($jobs as $job): ?>
                         <div class="job-card">
                             <div class="job-card-header">
-                                <div class="company-logo">
-                                    <?php if (!empty($job['company_logo'])): ?>
-                                        <img src="<?php echo htmlspecialchars($job['company_logo']); ?>" alt="<?php echo htmlspecialchars($job['company_name']); ?> logo">
-                                    <?php else: ?>
-                                        <div class="logo-placeholder"><?php echo substr(htmlspecialchars($job['company_name'] ?? 'N/A'), 0, 1); ?></div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="job-info">
-                                    <h2 class="job-title">
-                                        <a href="job-details.php?id=<?php echo $job['id']; ?>">
-                                            <?php echo htmlspecialchars($job['title']); ?>
-                                        </a>
-                                    </h2>
-                                    <div class="company-name">
-                                        <?php if (!empty($job['company_id'])): ?>
-                                            <a href="company-profile.php?id=<?php echo $job['company_id']; ?>">
-                                                <?php echo htmlspecialchars($job['company_name'] ?? 'N/A'); ?>
-                                            </a>
-                                        <?php else: ?>
-                                            <?php echo htmlspecialchars($job['company_name'] ?? 'N/A'); ?>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
+                                <h2 class="job-title">
+                                    <a href="job-details.php?id=<?php echo $job['id']; ?>">
+                                        <?php echo htmlspecialchars($job['title']); ?>
+                                    </a>
+                                </h2>
+                                <span class="job-company"><?php echo htmlspecialchars($job['company']); ?></span>
                             </div>
                             
-                            <div class="job-card-content">
-                                <div class="job-details">
-                                    <span class="job-location">
-                                        <i class="icon-location"></i> <?php echo htmlspecialchars($job['location']); ?>
-                                    </span>
-                                    <span class="job-type">
-                                        <i class="icon-briefcase"></i> <?php echo htmlspecialchars($job['job_type']); ?>
-                                    </span>
-                                    <?php if (!empty($job['salary_min']) || !empty($job['salary_max'])): ?>
-                                        <span class="job-salary">
-                                            <i class="icon-money"></i>
-                                            <?php
-                                                if (!empty($job['salary_min']) && !empty($job['salary_max'])) {
-                                                    echo '$' . number_format($job['salary_min']) . ' - $' . number_format($job['salary_max']);
-                                                } elseif (!empty($job['salary_min'])) {
-                                                    echo 'From $' . number_format($job['salary_min']);
-                                                } elseif (!empty($job['salary_max'])) {
-                                                    echo 'Up to $' . number_format($job['salary_max']);
-                                                }
-                                            ?>
-                                        </span>
+                            <div class="job-card-body">
+                                <div class="job-meta">
+                                    <span class="job-location"><?php echo htmlspecialchars($job['location']); ?></span>
+                                    <span class="job-type"><?php echo htmlspecialchars($job['job_type']); ?></span>
+                                    <?php if (!empty($job['salary_range'])): ?>
+                                        <span class="job-salary"><?php echo htmlspecialchars($job['salary_range']); ?></span>
                                     <?php endif; ?>
                                 </div>
                                 
-                                <div class="job-description-preview">
+                                <?php if (!empty($job['categories'])): ?>
+                                <div class="job-categories">
+                                    <div class="category-tags">
+                                        <?php foreach (explode(', ', $job['categories']) as $cat): ?>
+                                            <span class="category-tag"><?php echo htmlspecialchars($cat); ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <?php if (!empty($job['tags'])): ?>
+                                <div class="job-tags">
+                                    <div class="skill-tags">
+                                        <?php foreach (explode(', ', $job['tags']) as $t): ?>
+                                            <span class="skill-tag"><?php echo htmlspecialchars($t); ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <div class="job-excerpt">
                                     <?php 
-                                        // show a short preview of the description
-                                        $desc = strip_tags($job['description']);
-                                        echo htmlspecialchars(substr($desc, 0, 150)) . (strlen($desc) > 150 ? '...' : '');
+                                    $description = htmlspecialchars($job['description']);
+                                    echo substr($description, 0, 150) . (strlen($description) > 150 ? '...' : '');
                                     ?>
-                                </div>
-                                
-                                <div class="job-card-actions">
-                                    <a href="job-details.php?id=<?php echo $job['id']; ?>" class="btn btn-outline">View Details</a>
-                                    
-                                    <?php if (isset($_SESSION['user_id'])): ?>
-                                        <form action="save-job.php" method="POST" class="inline-form">
-                                            <input type="hidden" name="job_id" value="<?php echo $job['id']; ?>">
-                                            <button type="submit" class="btn btn-icon" title="Save Job">
-                                                <i class="icon-bookmark"></i>
-                                            </button>
-                                        </form>
-                                    <?php endif; ?>
                                 </div>
                             </div>
                             
                             <div class="job-card-footer">
-                                <span class="post-date">
-                                    Posted <?php echo timeAgo($job['created_at']); ?>
-                                </span>
+                                <span class="job-date">Posted <?php echo date('M j, Y', strtotime($job['created_at'])); ?></span>
+                                <a href="job-details.php?id=<?php echo $job['id']; ?>" class="btn btn-link">View Details</a>
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -261,72 +262,30 @@ require_once 'includes/header.php';
                 <?php if ($total_pages > 1): ?>
                     <div class="pagination">
                         <?php if ($page > 1): ?>
-                            <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&location=<?php echo urlencode($location); ?>&job_type=<?php echo urlencode($job_type); ?>" class="pagination-prev">Previous</a>
+                            <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&location=<?php echo urlencode($location); ?>&job_type=<?php echo urlencode($job_type); ?>&category=<?php echo $category; ?>&tag=<?php echo $tag; ?>&sort=<?php echo $sort; ?>" class="pagination-prev">&laquo; Previous</a>
                         <?php endif; ?>
                         
-                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <?php if ($i == 1 || $i == $total_pages || ($i >= $page - 2 && $i <= $page + 2)): ?>
-                                <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&location=<?php echo urlencode($location); ?>&job_type=<?php echo urlencode($job_type); ?>" 
-                                   class="pagination-number <?php echo $i === $page ? 'active' : ''; ?>">
-                                    <?php echo $i; ?>
-                                </a>
-                            <?php elseif ($i == $page - 3 || $i == $page + 3): ?>
-                                <span class="pagination-ellipsis">...</span>
-                            <?php endif; ?>
-                        <?php endfor; ?>
+                        <div class="pagination-numbers">
+                            <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+                                <?php if ($i == $page): ?>
+                                    <span class="pagination-current"><?php echo $i; ?></span>
+                                <?php else: ?>
+                                    <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&location=<?php echo urlencode($location); ?>&job_type=<?php echo urlencode($job_type); ?>&category=<?php echo $category; ?>&tag=<?php echo $tag; ?>&sort=<?php echo $sort; ?>"><?php echo $i; ?></a>
+                                <?php endif; ?>
+                            <?php endfor; ?>
+                        </div>
                         
                         <?php if ($page < $total_pages): ?>
-                            <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&location=<?php echo urlencode($location); ?>&job_type=<?php echo urlencode($job_type); ?>" class="pagination-next">Next</a>
+                            <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&location=<?php echo urlencode($location); ?>&job_type=<?php echo urlencode($job_type); ?>&category=<?php echo $category; ?>&tag=<?php echo $tag; ?>&sort=<?php echo $sort; ?>" class="pagination-next">Next &raquo;</a>
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
-                
-            <?php else: ?>
-                <div class="no-results">
-                    <div class="no-results-icon">
-                        <i class="icon-search"></i>
-                    </div>
-                    <h2>No jobs found</h2>
-                    <p>Try adjusting your search or filters to find what you're looking for.</p>
-                    <?php if (!empty($search) || !empty($location) || !empty($job_type)): ?>
-                        <a href="jobs.php" class="btn btn-primary">Clear all filters</a>
-                    <?php endif; ?>
-                </div>
             <?php endif; ?>
         </div>
     </div>
 </main>
 
 <?php
-// Helper function to format time ago
-function timeAgo($datetime) {
-    $timestamp = strtotime($datetime);
-    $now = time();
-    $diff = $now - $timestamp;
-    
-    if ($diff < 60) {
-        return 'just now';
-    } elseif ($diff < 3600) {
-        $minutes = floor($diff / 60);
-        return $minutes . ' minute' . ($minutes > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 86400) {
-        $hours = floor($diff / 3600);
-        return $hours . ' hour' . ($hours > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 604800) {
-        $days = floor($diff / 86400);
-        return $days . ' day' . ($days > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 2592000) {
-        $weeks = floor($diff / 604800);
-        return $weeks . ' week' . ($weeks > 1 ? 's' : '') . ' ago';
-    } elseif ($diff < 31536000) {
-        $months = floor($diff / 2592000);
-        return $months . ' month' . ($months > 1 ? 's' : '') . ' ago';
-    } else {
-        $years = floor($diff / 31536000);
-        return $years . ' year' . ($years > 1 ? 's' : '') . ' ago';
-    }
-}
-
 // include footer
 require_once 'includes/footer.php';
 ?> 

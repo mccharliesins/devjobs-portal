@@ -52,6 +52,32 @@ try {
         $similar_jobs = $stmt->fetchAll();
     }
     
+    // Get categories for this job
+    $stmt = $conn->prepare("
+        SELECT c.name 
+        FROM categories c
+        JOIN job_categories jc ON c.id = jc.category_id
+        WHERE jc.job_id = ?
+        ORDER BY c.name
+    ");
+    $stmt->execute([$job_id]);
+    $categories = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    // Get tags for this job
+    $stmt = $conn->prepare("
+        SELECT t.name
+        FROM tags t
+        JOIN job_tags jt ON t.id = jt.tag_id
+        WHERE jt.job_id = ?
+        ORDER BY t.name
+    ");
+    $stmt->execute([$job_id]);
+    $tags = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    
+    // Increment view count
+    $stmt = $conn->prepare("UPDATE jobs SET views = views + 1 WHERE id = ?");
+    $stmt->execute([$job_id]);
+    
 } catch (PDOException $e) {
     $_SESSION['error'] = 'failed to fetch job details: ' . $e->getMessage();
     header('Location: jobs.php');
@@ -169,6 +195,28 @@ require_once 'includes/header.php';
                         <span>Posted <?php echo date('M j, Y', strtotime($job['created_at'])); ?></span>
                     </div>
                 </div>
+                
+                <?php if (!empty($categories)): ?>
+                <div class="job-categories">
+                    <h3>Categories:</h3>
+                    <div class="category-tags">
+                        <?php foreach ($categories as $category): ?>
+                            <span class="category-tag"><?php echo htmlspecialchars($category); ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (!empty($tags)): ?>
+                <div class="job-tags">
+                    <h3>Skills & Technologies:</h3>
+                    <div class="skill-tags">
+                        <?php foreach ($tags as $tag): ?>
+                            <span class="skill-tag"><?php echo htmlspecialchars($tag); ?></span>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
                 
                 <div class="job-actions">
                     <?php if (isset($_SESSION['user_id']) && $_SESSION['role'] === 'user'): ?>
